@@ -1,5 +1,4 @@
 ﻿
-
 Table "users" {
   "id" BIGSERIAL [pk, increment]
   "full_name" VARCHAR(100) [not null]
@@ -8,11 +7,24 @@ Table "users" {
   "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
 }
 
+Table "user_addresses" {
+  "id" BIGSERIAL [pk, increment]
+  "user_id" BIGINT [not null]
+  "recipient_name" VARCHAR(100) [not null]
+  "phone_number" VARCHAR(15) [not null]
+  "province" VARCHAR(100) [not null]
+  "city" VARCHAR(100) [not null]
+  "address_line" TEXT [not null]
+  "plaque" VARCHAR(20)
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
 Table "booths" {
   "id" BIGSERIAL [pk, increment]
   "user_id" BIGINT [not null]
   "name" VARCHAR(150) [not null]
   "slug" VARCHAR(150) [unique, not null]
+  "city" VARCHAR(100) [not null]
   "description" TEXT
   "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
 }
@@ -24,6 +36,25 @@ Table "products" {
   "description" TEXT
   "price" BIGINT [not null]
   "stock" INT [not null, default: 0]
+  "lead_time_days" INT [default: 1]
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "product_reviews" {
+  "id" BIGSERIAL [pk, increment]
+  "user_id" BIGINT [not null]
+  "product_id" BIGINT [not null]
+  "rating" INT [not null, check: `rating >= 1 AND rating <= 5`]
+  "comment" TEXT
+  "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
+}
+
+Table "coupons" {
+  "id" BIGSERIAL [pk, increment]
+  "booth_id" BIGINT
+  "code" VARCHAR(50) [unique, not null]
+  "discount_amount" BIGINT [not null]
+  "min_order_amount" BIGINT [default: 0]
   "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
 }
 
@@ -38,6 +69,7 @@ Table "cart_items" {
   "cart_id" BIGINT [not null]
   "product_id" BIGINT [not null]
   "quantity" INT [not null, default: 1]
+  "is_saved_for_later" BOOLEAN [default: false]
   "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
 
   Indexes {
@@ -48,7 +80,13 @@ Table "cart_items" {
 Table "orders" {
   "id" BIGSERIAL [pk, increment]
   "user_id" BIGINT [not null]
-  "total_amount" BIGINT [not null]
+  "address_id" BIGINT [not null]
+  "items_total" BIGINT [not null]
+  "discount_amount" BIGINT [default: 0]
+  "shipping_fee" BIGINT [default: 0]
+  "service_fee" BIGINT [default: 0]
+  "final_amount" BIGINT [not null]
+  "payment_method" VARCHAR(50) [not null, default: 'online']
   "status" VARCHAR(50) [not null, default: 'pending']
   "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
 }
@@ -57,7 +95,7 @@ Table "order_items" {
   "id" BIGSERIAL [pk, increment]
   "order_id" BIGINT [not null]
   "product_id" BIGINT [not null]
-  "quantity" INT [not null]
+  "quantity" INT [not null, default: 1]
   "price_at_purchase" BIGINT [not null]
 }
 
@@ -77,22 +115,32 @@ Table "wallet_transactions" {
   "created_at" TIMESTAMP [default: `CURRENT_TIMESTAMP`]
 }
 
-Ref "fk_booth_user":"users"."id" <? "booths"."user_id" [delete: cascade]
+Ref:"users"."id" <? "user_addresses"."user_id" [delete: cascade]
 
-Ref "fk_product_booth":"booths"."id" <? "products"."booth_id" [delete: cascade]
+Ref:"users"."id" <? "booths"."user_id" [delete: cascade]
 
-Ref "fk_cart_user":"users"."id" <? "carts"."user_id" [delete: cascade]
+Ref:"booths"."id" <? "products"."booth_id" [delete: cascade]
 
-Ref "fk_item_cart":"carts"."id" <? "cart_items"."cart_id" [delete: cascade]
+Ref:"users"."id" <? "product_reviews"."user_id" [delete: cascade]
 
-Ref "fk_item_product":"products"."id" <? "cart_items"."product_id" [delete: cascade]
+Ref:"products"."id" <? "product_reviews"."product_id" [delete: cascade]
 
-Ref "fk_order_user":"users"."id" <? "orders"."user_id" [delete: restrict]
+Ref:"booths"."id" ?<? "coupons"."booth_id" [delete: cascade]
 
-Ref "fk_item_order":"orders"."id" <? "order_items"."order_id" [delete: cascade]
+Ref:"users"."id" <? "carts"."user_id" [delete: cascade]
 
-Ref "fk_item_order_product":"products"."id" <? "order_items"."product_id" [delete: restrict]
+Ref:"carts"."id" <? "cart_items"."cart_id" [delete: cascade]
 
-Ref "fk_wallet_user":"users"."id" <? "wallets"."user_id" [delete: cascade]
+Ref:"products"."id" <? "cart_items"."product_id" [delete: cascade]
 
-Ref "fk_transaction_wallet":"wallets"."id" <? "wallet_transactions"."wallet_id" [delete: cascade]
+Ref:"users"."id" <? "orders"."user_id" [delete: restrict]
+
+Ref:"user_addresses"."id" <? "orders"."address_id" [delete: restrict]
+
+Ref:"orders"."id" <? "order_items"."order_id" [delete: cascade]
+
+Ref:"products"."id" <? "order_items"."product_id" [delete: restrict]
+
+Ref:"users"."id" <? "wallets"."user_id" [delete: cascade]
+
+Ref:"wallets"."id" <? "wallet_transactions"."wallet_id" [delete: cascade]

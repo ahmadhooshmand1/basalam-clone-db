@@ -1,6 +1,3 @@
--- ==========================================
--- 1. Users Table
--- ==========================================
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     full_name VARCHAR(100) NOT NULL,
@@ -9,93 +6,107 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ==========================================
--- 2. Booths Table
--- ==========================================
-CREATE TABLE booths (
+CREATE TABLE user_addresses (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    name VARCHAR(150) NOT NULL,
-    slug VARCHAR(150) UNIQUE NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_booth_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recipient_name VARCHAR(100) NOT NULL,
+    phone_number VARCHAR(15) NOT NULL,
+    province VARCHAR(100) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    address_line TEXT NOT NULL,
+    plaque VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ==========================================
--- 3. Products Table
--- ==========================================
+CREATE TABLE booths (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(150) NOT NULL,
+    slug VARCHAR(150) UNIQUE NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE products (
     id BIGSERIAL PRIMARY KEY,
-    booth_id BIGINT NOT NULL,
+    booth_id BIGINT NOT NULL REFERENCES booths(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     description TEXT,
     price BIGINT NOT NULL,
     stock INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_product_booth FOREIGN KEY (booth_id) REFERENCES booths(id) ON DELETE CASCADE
+    lead_time_days INT DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ==========================================
--- 4. Cart Tables
--- ==========================================
+CREATE TABLE product_reviews (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE coupons (
+    id BIGSERIAL PRIMARY KEY,
+    booth_id BIGINT REFERENCES booths(id) ON DELETE CASCADE,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    discount_amount BIGINT NOT NULL,
+    min_order_amount BIGINT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE carts (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT UNIQUE NOT NULL,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    user_id BIGINT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE cart_items (
     id BIGSERIAL PRIMARY KEY,
-    cart_id BIGINT NOT NULL,
-    product_id BIGINT NOT NULL,
+    cart_id BIGINT NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     quantity INT NOT NULL DEFAULT 1,
+    is_saved_for_later BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_item_cart FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE,
-    CONSTRAINT fk_item_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
     CONSTRAINT uq_cart_product UNIQUE (cart_id, product_id)
 );
 
--- ==========================================
--- 5. Orders Tables
--- ==========================================
 CREATE TABLE orders (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    total_amount BIGINT NOT NULL,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    address_id BIGINT NOT NULL REFERENCES user_addresses(id) ON DELETE RESTRICT,
+    items_total BIGINT NOT NULL,
+    discount_amount BIGINT DEFAULT 0,
+    shipping_fee BIGINT DEFAULT 0,
+    service_fee BIGINT DEFAULT 0,
+    final_amount BIGINT NOT NULL,
+    payment_method VARCHAR(50) NOT NULL DEFAULT 'online',
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_order_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE order_items (
     id BIGSERIAL PRIMARY KEY,
-    order_id BIGINT NOT NULL,
-    product_id BIGINT NOT NULL,
-    quantity INT NOT NULL,
-    price_at_purchase BIGINT NOT NULL,
-    CONSTRAINT fk_item_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    CONSTRAINT fk_item_order_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+    order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    quantity INT NOT NULL DEFAULT 1,
+    price_at_purchase BIGINT NOT NULL
 );
 
--- ==========================================
--- 6. Wallets & Transactions (Ledger)
--- ==========================================
 CREATE TABLE wallets (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT UNIQUE NOT NULL,
+    user_id BIGINT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     balance BIGINT NOT NULL DEFAULT 0,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_wallet_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE wallet_transactions (
     id BIGSERIAL PRIMARY KEY,
-    wallet_id BIGINT NOT NULL,
+    wallet_id BIGINT NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
     amount BIGINT NOT NULL,
     transaction_type VARCHAR(50) NOT NULL,
     idempotency_key VARCHAR(100) UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_transaction_wallet FOREIGN KEY (wallet_id) REFERENCES wallets(id) ON DELETE CASCADE
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
